@@ -1,0 +1,145 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --volt: #C8FF00;
+  --carbon: #0A0A0A;
+  --panel: #111827;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #0A0A0A;
+  color: #F9FAFB;
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+}
+
+/* Grid background texture */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: 
+    linear-gradient(rgba(200, 255, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 255, 0, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Volt glow effect */
+.volt-glow {
+  box-shadow: 0 0 30px rgba(200, 255, 0, 0.15), 0 0 60px rgba(200, 255, 0, 0.05);
+}
+
+.volt-text-glow {
+  text-shadow: 0 0 20px rgba(200, 255, 0, 0.4);
+}
+
+/* Input styling */
+.ems-input {
+  background: rgba(17, 24, 39, 0.8);
+  border: 1px solid rgba(200, 255, 0, 0.15);
+  color: #F9FAFB;
+  font-family: 'DM Sans', sans-serif;
+  transition: all 0.2s ease;
+}
+
+.ems-input:focus {
+  outline: none;
+  border-color: rgba(200, 255, 0, 0.6);
+  box-shadow: 0 0 0 3px rgba(200, 255, 0, 0.08);
+}
+
+.ems-input option {
+  background: #111827;
+}
+
+/* Button */
+.volt-btn {
+  background: #C8FF00;
+  color: #0A0A0A;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.volt-btn:hover {
+  background: #d4ff33;
+  box-shadow: 0 0 30px rgba(200, 255, 0, 0.4);
+  transform: translateY(-1px);
+}
+
+.volt-btn:active {
+  transform: translateY(0);
+}
+
+.volt-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Card */
+.ems-card {
+  background: rgba(17, 24, 39, 0.9);
+  border: 1px solid rgba(200, 255, 0, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+/* Pulse animation for loading */
+@keyframes volt-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.volt-pulse {
+  animation: volt-pulse 1.5s ease-in-out infinite;
+}
+
+/* Slide up animation */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-up {
+  animation: slideUp 0.5s ease forwards;
+}
+
+.slide-up-delay-1 { animation-delay: 0.1s; opacity: 0; }
+.slide-up-delay-2 { animation-delay: 0.2s; opacity: 0; }
+.slide-up-delay-3 { animation-delay: 0.3s; opacity: 0; }
+.slide-up-delay-4 { animation-delay: 0.4s; opacity: 0; }
+
+/* Label */
+.ems-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(200, 255, 0, 0.7);
+}
+
+/* Stat box */
+.stat-box {
+  background: rgba(200, 255, 0, 0.05);
+  border: 1px solid rgba(200, 255, 0, 0.15);
+  border-radius: 8px;
+  padding: 1rem;
+}

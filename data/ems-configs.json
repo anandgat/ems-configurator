@@ -1,0 +1,80 @@
+[
+  {
+    "id": "EMS-001",
+    "name": "SolarEdge Home Hub 10kW",
+    "capacity_kw": 10,
+    "storage_kwh": 15,
+    "cost_usd": 18000,
+    "efficiency_pct": 94,
+    "payback_years": 6.5,
+    "annual_savings_usd": 2769,
+    "best_for": "Residential with high daytime consumption",
+    "features": ["Solar optimization", "Remote monitoring", "Grid export"],
+    "warranty_years": 10
+  },
+  {
+    "id": "EMS-002",
+    "name": "Tesla Powerwall+ 13.5kW",
+    "capacity_kw": 13.5,
+    "storage_kwh": 13.5,
+    "cost_usd": 22000,
+    "efficiency_pct": 97,
+    "payback_years": 7.2,
+    "annual_savings_usd": 3055,
+    "best_for": "Residential with backup power priority",
+    "features": ["Storm watch", "Time-based control", "Mobile app"],
+    "warranty_years": 10
+  },
+  {
+    "id": "EMS-003",
+    "name": "Enphase IQ Battery 5P",
+    "capacity_kw": 5,
+    "storage_kwh": 5,
+    "cost_usd": 9500,
+    "efficiency_pct": 89,
+    "payback_years": 5.1,
+    "annual_savings_usd": 1862,
+    "best_for": "Small residential, low consumption households",
+    "features": ["Microinverter integration", "Rapid shutdown", "Storm guard"],
+    "warranty_years": 15
+  },
+  {
+    "id": "EMS-004",
+    "name": "Generac PWRcell 17kW",
+    "capacity_kw": 17,
+    "storage_kwh": 17,
+    "cost_usd": 28000,
+    "efficiency_pct": 96.5,
+    "payback_years": 8.1,
+    "annual_savings_usd": 3456,
+    "best_for": "Large residential or small commercial, whole-home backup",
+    "features": ["Whole-home backup", "Scalable storage", "PWRview monitoring"],
+    "warranty_years": 10
+  },
+  {
+    "id": "EMS-005",
+    "name": "LG RESU Prime 16H",
+    "capacity_kw": 16,
+    "storage_kwh": 16,
+    "cost_usd": 21000,
+    "efficiency_pct": 95,
+    "payback_years": 6.9,
+    "annual_savings_usd": 3043,
+    "best_for": "High consumption homes with evening peak demand",
+    "features": ["High voltage system", "Compatible with major inverters", "Modular"],
+    "warranty_years": 10
+  },
+  {
+    "id": "EMS-006",
+    "name": "Sonnen Eco 20kW Commercial",
+    "capacity_kw": 20,
+    "storage_kwh": 20,
+    "cost_usd": 35000,
+    "efficiency_pct": 98,
+    "payback_years": 9.2,
+    "annual_savings_usd": 3804,
+    "best_for": "Small commercial, high demand, grid independence goal",
+    "features": ["AI energy management", "Virtual power plant ready", "10,000 cycle warranty"],
+    "warranty_years": 15
+  }
+]
