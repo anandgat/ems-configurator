@@ -35,7 +35,33 @@ export async function POST(req) {
 
     // Build Gemini prompt
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const MODELS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-pro"];
+
+    async function callGeminiWithFallback(prompt) {
+      for (const modelId of MODELS) {
+        const model = genAI.getGenerativeModel({ model: modelId });
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            console.log(`Gemini: trying ${modelId} (attempt ${attempt})`);
+            const result = await model.generateContent(prompt);
+            console.log(`Gemini: success with ${modelId}`);
+            return result;
+          } catch (err) {
+            const is503 = err.message?.includes("503") || err.status === 503;
+            if (is503 && attempt === 1) {
+              console.warn(`Gemini 503 on ${modelId}, retrying in 2s…`);
+              await new Promise((r) => setTimeout(r, 2000));
+            } else if (is503) {
+              console.warn(`Gemini 503 on ${modelId} after retry, trying next model…`);
+              break; // move to next model
+            } else {
+              throw err; // non-503 error (quota, auth etc) — don't retry
+            }
+          }
+        }
+      }
+      throw new Error("All Gemini models are currently unavailable. Please try again in a moment.");
+    }
 
     const prompt = `
 You are an expert Energy Management System (EMS) consultant.
@@ -74,7 +100,7 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with exactly this 
 }
 `;
 
-    const result = await model.generateContent(prompt);
+    const result = await callGeminiWithFallback(prompt);
     const text = result.response.text();
     const clean = text.replace(/```json|```/g, "").trim();
     const geminiResult = JSON.parse(clean);
