@@ -3,242 +3,372 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ROIChart from "@/components/ROIChart";
+import MonthlyBreakdown from "@/components/MonthlyBreakdown";
+import SOCChart from "@/components/SOCChart";
 
 export default function Results() {
   const router = useRouter();
   const [result, setResult] = useState(null);
-  const [input, setInput] = useState(null);
 
   useEffect(() => {
     const r = sessionStorage.getItem("ems_result");
-    const i = sessionStorage.getItem("ems_input");
-    if (!r) {
-      router.push("/");
-      return;
-    }
+    if (!r) { router.push("/"); return; }
     setResult(JSON.parse(r));
-    setInput(JSON.parse(i));
   }, [router]);
 
   if (!result) {
     return (
-      <main className="content min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">Loading...</p>
-      </main>
+      <div style={{ background: "var(--bg)", minHeight: "100vh" }} className="flex items-center justify-center">
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading…</p>
+      </div>
     );
   }
 
   const cfg = result.recommended_config;
+  const sim = result.simulation;
+  const summary = sim?.summary;
+  const annualSavings = result.projected_annual_savings_usd;
+  const paybackYears = result.actual_payback_years;
+  const reductionPct = result.roi_achieved_pct;
+
+  const sectionTitle = (text) => (
+    <h2
+      className="text-sm font-semibold mb-4"
+      style={{ color: "var(--text)", fontFamily: "Inter, sans-serif", letterSpacing: "-0.01em" }}
+    >
+      {text}
+    </h2>
+  );
 
   return (
-    <main className="content min-h-screen">
+    <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
       {/* Header */}
-      <header className="border-b border-volt/10 px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <button
-            onClick={() => router.push("/")}
-            className="flex items-center gap-2 text-gray-400 hover:text-volt transition-colors text-sm"
-            style={{ fontFamily: "DM Sans, sans-serif" }}
-          >
-            ← Back to configurator
-          </button>
-          <span
-            className="font-display font-800 text-lg tracking-tight"
-            style={{ fontFamily: "Syne, sans-serif", fontWeight: 800 }}
-          >
-            EMS<span className="text-volt">configurator</span>
-          </span>
+      <header style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold"
+                style={{ background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)" }}
+              >
+                E
+              </div>
+              <span className="text-sm font-semibold" style={{ color: "var(--text)", fontFamily: "Inter, sans-serif" }}>
+                EMS Configurator
+              </span>
+            </div>
+            <span style={{ color: "var(--border)" }}>|</span>
+            <span className="text-sm" style={{ color: "var(--text-dim)", fontFamily: "Inter, sans-serif" }}>
+              Simulation Results
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            {sim && (
+              <span
+                className="text-xs px-2.5 py-1 rounded-full font-medium"
+                style={{
+                  background: "var(--success-muted)",
+                  color: "var(--success)",
+                  border: "1px solid rgba(5,150,105,0.25)",
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: "0.7rem",
+                }}
+              >
+                ● Simulation Verified
+              </span>
+            )}
+            {result.simulationError && (
+              <span
+                className="text-xs px-2.5 py-1 rounded-full font-medium"
+                style={{
+                  background: "var(--warning-muted)",
+                  color: "var(--warning)",
+                  border: "1px solid rgba(217,119,6,0.25)",
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: "0.7rem",
+                }}
+              >
+                ● AI Estimate Only
+              </span>
+            )}
+            <button
+              onClick={() => router.push("/")}
+              className="ems-btn-ghost text-xs rounded-lg px-3 py-1.5"
+            >
+              ← New Simulation
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="ems-btn-ghost text-xs rounded-lg px-3 py-1.5"
+            >
+              Export PDF
+            </button>
+          </div>
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-6 py-12">
+      <div className="max-w-6xl mx-auto px-6 py-8">
 
-        {/* Top banner */}
-        <div className="slide-up mb-8">
-          <p className="ems-label mb-3" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.7)" }}>
-            AI Recommendation
-          </p>
+        {/* Recommendation banner */}
+        <div
+          className="rounded-2xl p-6 mb-6 fade-in"
+          style={{
+            background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)",
+            boxShadow: "0 8px 24px rgba(79,70,229,0.25)",
+          }}
+        >
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold mb-2 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.6)", fontFamily: "Inter, sans-serif", letterSpacing: "0.1em" }}>
+                Recommended System
+              </p>
               <h1
-                className="text-4xl md:text-5xl font-800 leading-tight"
-                style={{ fontFamily: "Syne, sans-serif", fontWeight: 800 }}
+                className="text-2xl font-bold mb-1.5 leading-tight"
+                style={{ color: "#FFFFFF", fontFamily: "Inter, sans-serif" }}
               >
                 {cfg.name}
               </h1>
-              <p className="text-gray-400 mt-2 text-lg max-w-2xl" style={{ fontFamily: "DM Sans, sans-serif" }}>
+              {cfg.description && (
+                <p className="text-xs mb-2.5" style={{ color: "rgba(255,255,255,0.55)", fontFamily: "JetBrains Mono, monospace" }}>
+                  {cfg.description}
+                </p>
+              )}
+              <p className="text-sm" style={{ color: "rgba(255,255,255,0.8)", fontFamily: "Inter, sans-serif", maxWidth: "680px", lineHeight: 1.6 }}>
                 {result.reason}
               </p>
             </div>
             <div
-              className="shrink-0 px-4 py-2 rounded-full text-sm font-semibold"
+              className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full"
               style={{
-                fontFamily: "JetBrains Mono, monospace",
-                background: result.roi_meets_target
-                  ? "rgba(200,255,0,0.15)"
-                  : "rgba(255,165,0,0.15)",
-                border: result.roi_meets_target
-                  ? "1px solid rgba(200,255,0,0.5)"
-                  : "1px solid rgba(255,165,0,0.5)",
-                color: result.roi_meets_target ? "#C8FF00" : "#FFA500",
+                fontFamily: "Inter, sans-serif",
+                background: result.roi_meets_target ? "rgba(255,255,255,0.2)" : "rgba(245,158,11,0.3)",
+                color: "#FFFFFF",
+                border: "1px solid rgba(255,255,255,0.3)",
+                backdropFilter: "blur(4px)",
               }}
             >
-              {result.roi_meets_target ? "✓ ROI Target Met" : "⚠ ROI Partially Met"}
+              {result.roi_meets_target ? "✓ ROI Target Met" : "⚠ Partially Met"}
             </div>
           </div>
         </div>
 
-        {/* Key stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 slide-up slide-up-delay-1">
+        {/* Key metrics */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 fade-in-1">
           {[
-            {
-              label: "System Cost",
-              value: `$${cfg.cost_usd.toLocaleString()}`,
-              sub: "upfront investment",
-            },
-            {
-              label: "Annual Savings",
-              value: `$${result.projected_annual_savings_usd.toLocaleString()}`,
-              sub: "per year",
-            },
-            {
-              label: "Payback Period",
-              value: `${result.actual_payback_years} yrs`,
-              sub: "break-even",
-            },
-            {
-              label: "ROI Achieved",
-              value: `${result.roi_achieved_pct}%`,
-              sub: "return on investment",
-            },
+            { label: "System Cost",    value: cfg.cost_usd ? `$${cfg.cost_usd.toLocaleString()}` : "N/A", sub: "upfront investment", color: "var(--text)" },
+            { label: "Annual Savings", value: annualSavings ? `$${annualSavings.toLocaleString()}` : "N/A", sub: sim ? "simulation-verified" : "AI estimate", color: "var(--success)" },
+            { label: "Payback Period", value: paybackYears ? `${paybackYears} yrs` : "N/A", sub: "break-even point", color: "var(--accent)" },
+            { label: "Bill Reduction", value: reductionPct != null ? `${reductionPct}%` : "N/A", sub: sim ? "vs. baseline cost" : "estimated", color: "var(--accent)" },
           ].map((stat) => (
             <div key={stat.label} className="stat-box">
-              <p className="ems-label mb-1" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.65rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.6)" }}>
-                {stat.label}
-              </p>
+              <p className="ems-label mb-2">{stat.label}</p>
               <p
-                className="text-2xl font-800 text-volt"
-                style={{ fontFamily: "Syne, sans-serif", fontWeight: 800 }}
+                className="text-2xl font-bold mb-0.5"
+                style={{ color: stat.color, fontFamily: "Inter, sans-serif" }}
               >
                 {stat.value}
               </p>
-              <p className="text-gray-500 text-xs mt-1">{stat.sub}</p>
+              <p className="text-xs" style={{ color: "var(--text-dim)" }}>{stat.sub}</p>
             </div>
           ))}
         </div>
 
-        {/* Chart + Specs side by side */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-
-          {/* ROI Chart */}
-          <div className="ems-card rounded-2xl p-6 slide-up slide-up-delay-2">
-            <p className="ems-label mb-4" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.7)" }}>
-              Cumulative Savings Over Time
-            </p>
-            <ROIChart
-              cost={cfg.cost_usd}
-              annualSavings={result.projected_annual_savings_usd}
-              years={15}
-            />
-          </div>
-
-          {/* System Specs */}
-          <div className="ems-card rounded-2xl p-6 slide-up slide-up-delay-2">
-            <p className="ems-label mb-4" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.7)" }}>
-              System Specifications
-            </p>
-            <div className="space-y-3">
+        {/* Simulation energy summary */}
+        {summary && (
+          <div
+            className="rounded-xl p-4 mb-6 fade-in-1"
+            style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}
+          >
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               {[
-                { label: "Capacity", value: `${cfg.capacity_kw} kW` },
-                { label: "Storage", value: `${cfg.storage_kwh} kWh` },
-                { label: "Efficiency", value: `${cfg.efficiency_pct}%` },
-                { label: "Warranty", value: `${cfg.warranty_years} years` },
-                { label: "Best For", value: cfg.best_for },
-              ].map((spec) => (
-                <div
-                  key={spec.label}
-                  className="flex justify-between items-start py-2 border-b border-volt/5"
-                >
-                  <span
-                    className="text-gray-500 text-sm"
-                    style={{ fontFamily: "JetBrains Mono, monospace" }}
-                  >
-                    {spec.label}
-                  </span>
-                  <span
-                    className="text-gray-200 text-sm text-right max-w-[55%]"
-                    style={{ fontFamily: "DM Sans, sans-serif" }}
-                  >
-                    {spec.value}
-                  </span>
+                { label: "Annual Import",    value: `${summary.annualImportKWh?.toLocaleString()} kWh`,  color: "var(--danger)" },
+                { label: "Annual Export",    value: `${summary.annualExportKWh?.toLocaleString()} kWh`,  color: "var(--success)" },
+                { label: "Import Cost",      value: `$${summary.annualImportCost?.toFixed(0)}`,          color: "var(--danger)" },
+                { label: "Export Credit",    value: `-$${summary.annualExportCredit?.toFixed(0)}`,       color: "var(--success)" },
+                { label: "Avg Monthly Bill", value: `$${summary.averageMonthlyBill?.toFixed(2)}`,        color: "var(--accent)" },
+              ].map((s) => (
+                <div key={s.label}>
+                  <p className="ems-label mb-1">{s.label}</p>
+                  <p className="text-base font-semibold" style={{ color: s.color, fontFamily: "Inter, sans-serif" }}>
+                    {s.value}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Features */}
-        <div className="ems-card rounded-2xl p-6 mb-8 slide-up slide-up-delay-3">
-          <p className="ems-label mb-4" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.7)" }}>
-            Included Features
-          </p>
-          <div className="flex flex-wrap gap-3">
-            {cfg.features.map((feature) => (
-              <span
-                key={feature}
-                className="px-4 py-2 rounded-full text-sm"
-                style={{
-                  background: "rgba(200,255,0,0.08)",
-                  border: "1px solid rgba(200,255,0,0.2)",
-                  color: "#C8FF00",
-                  fontFamily: "DM Sans, sans-serif",
-                }}
-              >
-                ✓ {feature}
-              </span>
-            ))}
+        {/* Chart + Specs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5 fade-in-2">
+          <div className="ems-card rounded-xl p-6">
+            {sectionTitle("15-Year Cumulative Savings")}
+            <ROIChart
+              cost={cfg.cost_usd}
+              annualSavings={annualSavings}
+              years={15}
+              baselineCost={result.baselineAnnualCost}
+              simulationNetBill={summary?.annualNetBill}
+            />
+          </div>
+
+          <div className="ems-card rounded-xl p-6">
+            {sectionTitle("System Specifications")}
+            <div className="space-y-0">
+              {[
+                { label: "Capacity",           value: cfg.capacity_kw ? `${cfg.capacity_kw} kW` : null },
+                { label: "Storage",            value: cfg.storage_kwh ? `${cfg.storage_kwh} kWh` : null },
+                { label: "Battery Voltage",    value: cfg.battery_voltage ? `${cfg.battery_voltage} V` : null },
+                { label: "Depth of Discharge", value: cfg.depth_of_discharge ? `${cfg.depth_of_discharge}%` : null },
+                { label: "Best For",           value: cfg.best_for || cfg.description },
+              ]
+                .filter((s) => s.value)
+                .map((spec) => (
+                  <div
+                    key={spec.label}
+                    className="flex justify-between items-start py-2.5"
+                    style={{ borderBottom: "1px solid var(--border-light)" }}
+                  >
+                    <span className="text-xs" style={{ color: "var(--text-dim)", fontFamily: "DM Sans, sans-serif" }}>
+                      {spec.label}
+                    </span>
+                    <span className="text-xs font-medium text-right max-w-[55%]" style={{ color: "var(--text)", fontFamily: "DM Sans, sans-serif" }}>
+                      {spec.value}
+                    </span>
+                  </div>
+                ))}
+            </div>
           </div>
         </div>
 
-        {/* Alternative note */}
-        {result.alternative_note && (
-          <div
-            className="rounded-xl p-4 mb-8 slide-up slide-up-delay-4"
-            style={{
-              background: "rgba(255,165,0,0.05)",
-              border: "1px solid rgba(255,165,0,0.2)",
-            }}
-          >
-            <p className="text-orange-300 text-sm" style={{ fontFamily: "DM Sans, sans-serif" }}>
-              💡 <strong>Note:</strong> {result.alternative_note}
-            </p>
+        {/* SOC Chart */}
+        {sim?.months && (
+          <div className="ems-card rounded-xl p-6 mb-5 fade-in-3">
+            {sectionTitle("State of Charge — Daily Cycle Checkpoints by Month")}
+            <SOCChart months={sim.months} batteryCapacity={cfg.storage_kwh} />
           </div>
         )}
 
-        {/* CTA */}
-        <div className="flex flex-col sm:flex-row gap-4 slide-up slide-up-delay-4">
+        {/* Monthly Breakdown */}
+        {sim?.months && (
+          <div className="ems-card rounded-xl p-6 mb-5 fade-in-3">
+            {sectionTitle("Monthly Financial Breakdown")}
+            <MonthlyBreakdown months={sim.months} />
+          </div>
+        )}
+
+        {/* Features */}
+        {cfg.features && cfg.features.length > 0 && (
+          <div className="ems-card rounded-xl p-6 mb-5 fade-in-3">
+            {sectionTitle("System Features")}
+            <div className="flex flex-wrap gap-2">
+              {cfg.features.map((feature) => (
+                <span
+                  key={feature}
+                  className="text-xs px-3 py-1.5 rounded-md"
+                  style={{
+                    background: "var(--accent-muted)",
+                    border: "1px solid rgba(79,70,229,0.2)",
+                    color: "var(--accent)",
+                    fontFamily: "DM Sans, sans-serif",
+                  }}
+                >
+                  ✓ {feature}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* What's Next */}
+        {sim?.months && (
+          <div
+            className="rounded-2xl p-8 mb-5 fade-in-4 text-center"
+            style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+          >
+            <div
+              className="w-px mx-auto mb-6"
+              style={{ height: 32, background: "var(--border)" }}
+            />
+            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--text-dim)", letterSpacing: "0.12em" }}>
+              What would you like to explore next?
+            </p>
+            <p
+              className="text-lg font-semibold mb-6 max-w-md mx-auto"
+              style={{ color: "var(--text)", lineHeight: 1.5 }}
+            >
+              Would you like to see how energy arbitrage could further reduce your bill?
+            </p>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all"
+              style={{
+                background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)",
+                color: "#fff",
+                boxShadow: "0 4px 16px rgba(79,70,229,0.3)",
+              }}
+            >
+              Yes, show me →
+            </button>
+          </div>
+        )}
+
+        {/* Notices */}
+        {result.alternative_note && (
+          <div
+            className="rounded-xl p-4 mb-5 text-sm fade-in-4"
+            style={{ background: "var(--warning-muted)", border: "1px solid rgba(245,158,11,0.2)", color: "var(--warning)" }}
+          >
+            <strong>Note:</strong> {result.alternative_note}
+          </div>
+        )}
+        {result.simulationError && (
+          <div
+            className="rounded-xl p-4 mb-5 text-sm fade-in-4"
+            style={{ background: "var(--warning-muted)", border: "1px solid rgba(245,158,11,0.2)", color: "var(--warning)" }}
+          >
+            <strong>Simulation unavailable:</strong> {result.simulationError}. Savings figures shown are AI estimates.
+          </div>
+        )}
+
+        {/* CTA row */}
+        <div className="flex gap-3 mb-12 fade-in-4">
           <button
             onClick={() => router.push("/")}
-            className="volt-btn flex-1 rounded-xl py-4 text-base"
-            style={{ fontFamily: "Syne, sans-serif", fontWeight: 700 }}
+            className="ems-btn-primary rounded-lg px-5 py-2.5 text-sm"
           >
-            ← Try Different Profile
+            ← New Simulation
           </button>
           <button
             onClick={() => window.print()}
-            className="flex-1 rounded-xl py-4 text-base font-semibold transition-all"
-            style={{
-              fontFamily: "Syne, sans-serif",
-              fontWeight: 600,
-              background: "transparent",
-              border: "1px solid rgba(200,255,0,0.3)",
-              color: "#C8FF00",
-            }}
+            className="ems-btn-ghost rounded-lg px-5 py-2.5 text-sm"
           >
-            Print / Save Report
+            Export PDF
           </button>
         </div>
       </div>
-    </main>
+
+      {/* Footer */}
+      <footer style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
+        <div className="max-w-6xl mx-auto px-6 py-5 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs" style={{ color: "var(--text-dim)", fontFamily: "Inter, sans-serif" }}>
+            © 2025 EMS Configurator. Simulation results are estimates based on historical usage patterns.
+          </p>
+          <div className="flex items-center gap-4">
+            {["Privacy Policy", "Terms of Service"].map((link) => (
+              <a
+                key={link}
+                href="#"
+                className="text-xs transition-colors"
+                style={{ color: "var(--text-dim)", fontFamily: "Inter, sans-serif", textDecoration: "none" }}
+                onMouseEnter={(e) => e.target.style.color = "var(--accent)"}
+                onMouseLeave={(e) => e.target.style.color = "var(--text-dim)"}
+              >
+                {link}
+              </a>
+            ))}
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }

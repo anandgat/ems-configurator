@@ -1,26 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+
+const BOLT = (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M9.5 1.5L3.5 9H8.5L6.5 14.5L13.5 6.5H8.5L9.5 1.5Z" fill="white" />
+  </svg>
+);
 
 export default function Home() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [products, setProducts] = useState([]);
+  const [productsSource, setProductsSource] = useState(null);
+  const [plans, setPlans] = useState([]);
+  const [selectedPlanId, setSelectedPlanId] = useState(null);
+  const [planSearch, setPlanSearch] = useState("");
+  const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
 
   const [form, setForm] = useState({
-    daily_kwh: "",
-    peak_hours: "evening",
-    tariff: "",
-    roi_pct: "",
-    roi_years: "7",
-    property_type: "residential",
-    primary_goal: "savings",
+    annual_kwh: "",
+    tariff:     "",
+    zip_code:   "75001",
   });
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  useEffect(() => {
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then((d) => { setProducts(d.products); setProductsSource(d.source); })
+      .catch((e) => console.error("Failed to load products:", e));
+
+    fetch("/api/plans")
+      .then((r) => r.json())
+      .then((d) => setPlans(d.plans || []))
+      .catch((e) => console.error("Failed to load plans:", e));
+  }, []);
+
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  useEffect(() => {
+    if (!planDropdownOpen) return;
+    const close = (e) => {
+      if (!e.target.closest("[data-plan-dropdown]")) setPlanDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [planDropdownOpen]);
+
+  const canSubmit = !loading && !!selectedPlanId && !!form.annual_kwh && !!form.tariff && !!form.zip_code;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,18 +60,21 @@ export default function Home() {
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          annualConsumption:   parseInt(form.annual_kwh, 10),
+          currentUtilityRate:  parseFloat(form.tariff),
+          zipCode:             form.zip_code,
+          planId:              selectedPlanId,
+          products,
+          productsSource,
+        }),
       });
 
       const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Something went wrong");
 
-      if (!res.ok || data.error) {
-        throw new Error(data.error || "Something went wrong");
-      }
-
-      // Store result and navigate to results page
       sessionStorage.setItem("ems_result", JSON.stringify(data));
-      sessionStorage.setItem("ems_input", JSON.stringify(form));
+      sessionStorage.setItem("ems_input", JSON.stringify({ ...form, planId: selectedPlanId }));
       router.push("/results");
     } catch (err) {
       setError(err.message);
@@ -51,238 +83,299 @@ export default function Home() {
   };
 
   return (
-    <main className="content min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="border-b border-volt/10 px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-volt flex items-center justify-center">
-              <span className="text-carbon font-bold text-sm">⚡</span>
+    <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
+
+      {/* ── Header ───────────────────────────────────────────── */}
+      <header style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", boxShadow: "var(--shadow-sm)" }}>
+        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--accent)" }}>
+              {BOLT}
             </div>
-            <span
-              className="font-display font-700 text-lg tracking-tight"
-              style={{ fontFamily: "Syne, sans-serif", fontWeight: 800 }}
-            >
-              EMS<span className="text-volt">configurator</span>
-            </span>
+            <span className="font-semibold" style={{ color: "var(--text)" }}>EMS Configurator</span>
           </div>
-          <span className="ems-label" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.65rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.6)" }}>
-            Powered by Gemini 3.1 Pro
-          </span>
+
+          {productsSource && (
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+              style={{
+                background:   productsSource === "backend" ? "var(--success-muted)" : "var(--warning-muted)",
+                color:        productsSource === "backend" ? "var(--success)"       : "var(--warning)",
+                border: `1px solid ${productsSource === "backend" ? "rgba(5,150,105,0.2)" : "rgba(217,119,6,0.2)"}`,
+                fontFamily: "JetBrains Mono, monospace",
+                fontSize: "0.62rem",
+                letterSpacing: "0.04em",
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor", display: "inline-block", flexShrink: 0 }} />
+              API CONNECTION: {productsSource === "backend" ? "STABLE" : "FALLBACK"}
+            </div>
+          )}
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="px-6 pt-16 pb-10 max-w-5xl mx-auto w-full">
-        <div className="slide-up">
-          <p className="ems-label mb-4" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.7)" }}>
-            AI-Powered Configuration
-          </p>
-          <h1
-            className="text-5xl md:text-7xl font-800 leading-none tracking-tight mb-4"
-            style={{ fontFamily: "Syne, sans-serif", fontWeight: 800 }}
+      {/* ── Hero ─────────────────────────────────────────────── */}
+      <section className="text-center pt-12 pb-8 px-6 fade-in">
+        <div className="flex items-center justify-center gap-2 mb-5">
+          <span
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
+            style={{ background: "var(--accent-light)", color: "var(--accent)", border: "1px solid rgba(79,70,229,0.2)" }}
           >
-            Find your <br />
-            <span className="text-volt volt-text-glow">perfect EMS</span>
-          </h1>
-          <p className="text-gray-400 text-lg max-w-xl mt-4" style={{ fontFamily: "DM Sans, sans-serif" }}>
-            Enter your energy profile and ROI expectations. Our AI analyzes
-            6 configurations to recommend the optimal system for you.
-          </p>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <circle cx="5" cy="5" r="4" fill="var(--accent)" opacity="0.3"/>
+              <circle cx="5" cy="5" r="2" fill="var(--accent)"/>
+            </svg>
+            Powered by Gemini AI
+          </span>
+          <span
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
+            style={{ background: "var(--success-muted)", color: "var(--success)", border: "1px solid rgba(5,150,105,0.2)" }}
+          >
+            DailyCycleEngine v1.0
+          </span>
+        </div>
+        <h1
+          className="text-4xl md:text-5xl font-bold mb-3 leading-tight"
+          style={{ color: "var(--text)" }}
+        >
+          What's your<br />
+          <span style={{ color: "var(--accent)" }}>energy situation?</span>
+        </h1>
+        <p className="text-sm max-w-lg mx-auto mb-5" style={{ color: "var(--text-muted)" }}>
+          Enter your energy usage and current plan — Gemini AI selects the optimal configuration, then our simulation engine calculates your real savings through time-of-use energy arbitrage.
+        </p>
+        <div className="flex items-center justify-center gap-4 flex-wrap">
+          {[
+            { icon: "⚡", text: "5-phase daily cycle simulation" },
+            { icon: "📊", text: "12-month financial breakdown" },
+            { icon: "🔋", text: "SOC tracking & export optimization" },
+          ].map((f) => (
+            <span key={f.text} className="text-xs flex items-center gap-1.5" style={{ color: "var(--text-dim)" }}>
+              <span>{f.icon}</span> {f.text}
+            </span>
+          ))}
         </div>
       </section>
 
-      {/* Form */}
-      <section className="px-6 pb-16 max-w-5xl mx-auto w-full">
-        <form onSubmit={handleSubmit}>
-          <div className="ems-card rounded-2xl p-8 volt-glow">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* ── Form ─────────────────────────────────────────────── */}
+      <div className="max-w-3xl mx-auto px-6 pb-16">
+        <form onSubmit={handleSubmit} className="space-y-5">
 
-              {/* Daily Consumption */}
-              <div className="slide-up slide-up-delay-1">
-                <label className="ems-label block mb-2" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.7)" }}>
-                  Daily Consumption (kWh)
-                </label>
-                <input
-                  type="number"
-                  name="daily_kwh"
-                  value={form.daily_kwh}
-                  onChange={handleChange}
-                  placeholder="e.g. 25"
-                  min="1"
-                  max="500"
-                  required
-                  className="ems-input w-full rounded-lg px-4 py-3 text-base"
-                  style={{ background: "rgba(17,24,39,0.8)", border: "1px solid rgba(200,255,0,0.15)", color: "#F9FAFB", fontFamily: "DM Sans, sans-serif" }}
-                />
-                <p className="text-gray-500 text-xs mt-1">Average household: 20–35 kWh/day</p>
-              </div>
+          {/* Basic Details */}
+          <div className="ems-card rounded-2xl p-6 fade-in-1">
+            <h2 className="font-semibold mb-5" style={{ color: "var(--text)" }}>Your Energy Details</h2>
 
-              {/* Grid Tariff */}
-              <div className="slide-up slide-up-delay-1">
-                <label className="ems-label block mb-2" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.7)" }}>
-                  Grid Tariff ($/kWh)
-                </label>
-                <input
-                  type="number"
-                  name="tariff"
-                  value={form.tariff}
-                  onChange={handleChange}
-                  placeholder="e.g. 0.28"
-                  step="0.01"
-                  min="0.01"
-                  required
-                  className="ems-input w-full rounded-lg px-4 py-3 text-base"
-                  style={{ background: "rgba(17,24,39,0.8)", border: "1px solid rgba(200,255,0,0.15)", color: "#F9FAFB", fontFamily: "DM Sans, sans-serif" }}
-                />
-                <p className="text-gray-500 text-xs mt-1">Check your electricity bill</p>
-              </div>
-
-              {/* ROI Target */}
-              <div className="slide-up slide-up-delay-2">
-                <label className="ems-label block mb-2" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.7)" }}>
-                  ROI Target (%)
-                </label>
-                <input
-                  type="number"
-                  name="roi_pct"
-                  value={form.roi_pct}
-                  onChange={handleChange}
-                  placeholder="e.g. 15"
-                  min="1"
-                  max="100"
-                  required
-                  className="ems-input w-full rounded-lg px-4 py-3 text-base"
-                  style={{ background: "rgba(17,24,39,0.8)", border: "1px solid rgba(200,255,0,0.15)", color: "#F9FAFB", fontFamily: "DM Sans, sans-serif" }}
-                />
-                <p className="text-gray-500 text-xs mt-1">Expected return on your investment</p>
-              </div>
-
-              {/* ROI Timeline */}
-              <div className="slide-up slide-up-delay-2">
-                <label className="ems-label block mb-2" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.7)" }}>
-                  ROI Timeframe (Years)
-                </label>
-                <select
-                  name="roi_years"
-                  value={form.roi_years}
-                  onChange={handleChange}
-                  className="ems-input w-full rounded-lg px-4 py-3 text-base"
-                  style={{ background: "rgba(17,24,39,0.8)", border: "1px solid rgba(200,255,0,0.15)", color: "#F9FAFB", fontFamily: "DM Sans, sans-serif" }}
-                >
-                  <option value="3">3 years</option>
-                  <option value="5">5 years</option>
-                  <option value="7">7 years</option>
-                  <option value="10">10 years</option>
-                  <option value="15">15 years</option>
-                </select>
-              </div>
-
-              {/* Peak Hours */}
-              <div className="slide-up slide-up-delay-3">
-                <label className="ems-label block mb-2" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.7)" }}>
-                  Peak Usage Period
-                </label>
-                <select
-                  name="peak_hours"
-                  value={form.peak_hours}
-                  onChange={handleChange}
-                  className="ems-input w-full rounded-lg px-4 py-3 text-base"
-                  style={{ background: "rgba(17,24,39,0.8)", border: "1px solid rgba(200,255,0,0.15)", color: "#F9FAFB", fontFamily: "DM Sans, sans-serif" }}
-                >
-                  <option value="morning">Morning (6am–12pm)</option>
-                  <option value="daytime">Daytime (9am–5pm)</option>
-                  <option value="evening">Evening (5pm–10pm)</option>
-                  <option value="night">Night (10pm–6am)</option>
-                  <option value="all-day">All day (consistent)</option>
-                </select>
-              </div>
-
-              {/* Property Type */}
-              <div className="slide-up slide-up-delay-3">
-                <label className="ems-label block mb-2" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.7)" }}>
-                  Property Type
-                </label>
-                <select
-                  name="property_type"
-                  value={form.property_type}
-                  onChange={handleChange}
-                  className="ems-input w-full rounded-lg px-4 py-3 text-base"
-                  style={{ background: "rgba(17,24,39,0.8)", border: "1px solid rgba(200,255,0,0.15)", color: "#F9FAFB", fontFamily: "DM Sans, sans-serif" }}
-                >
-                  <option value="residential-small">Residential — Small (&lt;150 sqm)</option>
-                  <option value="residential">Residential — Standard</option>
-                  <option value="residential-large">Residential — Large (&gt;300 sqm)</option>
-                  <option value="small-commercial">Small Commercial</option>
-                </select>
-              </div>
-
-              {/* Primary Goal - full width */}
-              <div className="md:col-span-2 slide-up slide-up-delay-4">
-                <label className="ems-label block mb-2" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(200,255,0,0.7)" }}>
-                  Primary Goal
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[
-                    { value: "savings", label: "💰 Cost Savings" },
-                    { value: "backup", label: "🔋 Backup Power" },
-                    { value: "independence", label: "🌐 Grid Independence" },
-                    { value: "environment", label: "🌱 Green Energy" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setForm({ ...form, primary_goal: opt.value })}
-                      className="rounded-lg px-4 py-3 text-sm font-medium transition-all"
-                      style={{
-                        fontFamily: "DM Sans, sans-serif",
-                        background: form.primary_goal === opt.value
-                          ? "rgba(200,255,0,0.15)"
-                          : "rgba(17,24,39,0.5)",
-                        border: form.primary_goal === opt.value
-                          ? "1px solid rgba(200,255,0,0.6)"
-                          : "1px solid rgba(200,255,0,0.1)",
-                        color: form.primary_goal === opt.value ? "#C8FF00" : "#9CA3AF",
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Annual Consumption */}
+              <div>
+                <label className="ems-label block mb-1.5">Annual Consumption</label>
+                <div className="relative">
+                  <input
+                    type="number" name="annual_kwh" value={form.annual_kwh}
+                    onChange={handleChange} placeholder="e.g. 12,000"
+                    min="100" max="200000" required
+                    className="ems-input w-full rounded-lg px-3 py-2.5 pr-12 text-sm"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium" style={{ color: "var(--text-dim)" }}>kWh</span>
                 </div>
+                <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>From your annual bill</p>
               </div>
-            </div>
 
-            {/* Error */}
-            {error && (
-              <div className="mt-6 p-4 rounded-lg bg-red-950/50 border border-red-500/30 text-red-400 text-sm">
-                ⚠️ {error}
+              {/* Utility Rate */}
+              <div>
+                <label className="ems-label block mb-1.5">Current Utility Rate</label>
+                <div className="relative">
+                  <input
+                    type="number" name="tariff" value={form.tariff}
+                    onChange={handleChange} placeholder="e.g. 0.165"
+                    step="0.001" min="0.01" required
+                    className="ems-input w-full rounded-lg px-3 py-2.5 pr-14 text-sm"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium" style={{ color: "var(--text-dim)" }}>$/kWh</span>
+                </div>
+                <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>Check your electricity bill</p>
               </div>
-            )}
 
-            {/* Submit */}
-            <div className="mt-8">
-              <button
-                type="submit"
-                disabled={loading}
-                className="volt-btn w-full rounded-xl py-4 text-lg tracking-wide"
-                style={{ fontFamily: "Syne, sans-serif", fontWeight: 700 }}
-              >
-                {loading ? (
-                  <span className="flex items-center justify-center gap-3">
-                    <span className="volt-pulse">⚡</span>
-                    Analyzing your profile with Gemini AI...
-                  </span>
-                ) : (
-                  "Find My Best EMS Configuration →"
-                )}
-              </button>
-              <p className="text-center text-gray-600 text-xs mt-3">
-                Analysis takes 5–10 seconds
-              </p>
+              {/* ZIP Code */}
+              <div>
+                <label className="ems-label block mb-1.5">Installation ZIP Code</label>
+                <input
+                  type="text" name="zip_code" value={form.zip_code}
+                  onChange={handleChange} placeholder="e.g. 75001"
+                  pattern="[0-9]{5}" maxLength={5} required
+                  className="ems-input w-full rounded-lg px-3 py-2.5 text-sm"
+                />
+                <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>For local tariff data</p>
+              </div>
             </div>
           </div>
+
+          {/* Electricity Plan */}
+          <div className="ems-card rounded-2xl p-6 fade-in-2" style={{ position: "relative", zIndex: 10 }}>
+            <h2 className="font-semibold mb-1" style={{ color: "var(--text)" }}>Current Electricity Plan</h2>
+            <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
+              Select your utility's time-of-use plan. Rates are pulled live from the selected plan for the simulation.
+            </p>
+
+            {plans.length === 0 ? (
+              <div className="flex items-center gap-2.5 py-4 text-sm" style={{ color: "var(--text-dim)" }}>
+                <span className="ems-spinner-dark" />
+                Loading available plans…
+              </div>
+            ) : (
+              <div className="relative" data-plan-dropdown>
+                {/* Trigger */}
+                <button
+                  type="button"
+                  onClick={() => setPlanDropdownOpen((o) => !o)}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition-all"
+                  style={{
+                    background: "var(--surface-raised)",
+                    border: `1px solid ${planDropdownOpen ? "var(--accent)" : "var(--border)"}`,
+                    color: selectedPlanId ? "var(--text)" : "var(--text-dim)",
+                    textAlign: "left",
+                  }}
+                >
+                  <span className="truncate">
+                    {selectedPlanId
+                      ? (() => {
+                          const p = plans.find((pl) => pl.id === selectedPlanId);
+                          return p ? `${p.planName} — ${p.tduName}` : "Select a plan";
+                        })()
+                      : "Select a plan…"}
+                  </span>
+                  <svg
+                    width="14" height="14" viewBox="0 0 14 14" fill="none"
+                    style={{ flexShrink: 0, marginLeft: 8, transition: "transform 0.15s", transform: planDropdownOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+                  >
+                    <path d="M2 5l5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+
+                {/* Dropdown */}
+                {planDropdownOpen && (
+                  <div
+                    className="absolute z-50 w-full mt-1 rounded-xl overflow-hidden"
+                    style={{
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      boxShadow: "var(--shadow-lg, 0 8px 32px rgba(0,0,0,0.12))",
+                    }}
+                  >
+                    {/* Search */}
+                    <div style={{ padding: "8px 8px 4px", borderBottom: "1px solid var(--border)" }}>
+                      <input
+                        autoFocus
+                        type="text"
+                        placeholder="Search by plan name or provider…"
+                        value={planSearch}
+                        onChange={(e) => setPlanSearch(e.target.value)}
+                        className="ems-input w-full rounded-lg px-3 py-2 text-sm"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+
+                    {/* Options */}
+                    <div style={{ maxHeight: 280, overflowY: "auto" }}>
+                      {plans
+                        .filter((p) => {
+                          const q = planSearch.toLowerCase();
+                          return (
+                            p.planName?.toLowerCase().includes(q) ||
+                            p.tduName?.toLowerCase().includes(q) ||
+                            p.zipCode?.toString().includes(q)
+                          );
+                        })
+                        .map((plan) => {
+                          const active = selectedPlanId === plan.id;
+                          return (
+                            <button
+                              key={plan.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedPlanId(plan.id);
+                                setPlanDropdownOpen(false);
+                                setPlanSearch("");
+                              }}
+                              className="w-full text-left flex items-center justify-between px-4 py-3 transition-colors"
+                              style={{
+                                background: active ? "var(--accent-muted)" : "transparent",
+                                borderBottom: "1px solid var(--border-light, var(--border))",
+                              }}
+                              onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "var(--surface-raised)"; }}
+                              onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                            >
+                              <div>
+                                <p className="text-sm font-medium" style={{ color: active ? "var(--accent)" : "var(--text)" }}>
+                                  {plan.planName}
+                                </p>
+                                <p className="text-xs mt-0.5" style={{ color: "var(--text-dim)" }}>
+                                  {plan.tduName} · ZIP {plan.zipCode} · Updated {new Date(plan.updateDate).toLocaleDateString()}
+                                </p>
+                              </div>
+                              {active && (
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, marginLeft: 8 }}>
+                                  <path d="M2 7l4 4 6-6" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              )}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div
+              className="p-4 rounded-xl text-sm"
+              style={{ background: "var(--warning-muted)", border: "1px solid rgba(217,119,6,0.2)", color: "var(--warning)" }}
+            >
+              {error}
+            </div>
+          )}
+
+          {/* CTA */}
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            className="w-full rounded-2xl py-4 text-base font-semibold flex items-center justify-center gap-2.5 transition-all fade-in-3"
+            style={{
+              position:    "relative",
+              zIndex:      1,
+              background:  canSubmit ? "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)" : "var(--border)",
+              color:       canSubmit ? "#fff" : "var(--text-dim)",
+              cursor:      canSubmit ? "pointer" : "not-allowed",
+              boxShadow:   canSubmit ? "0 8px 24px rgba(79,70,229,0.3)" : "none",
+            }}
+          >
+            {loading ? (
+              <>
+                <span className="ems-spinner" />
+                Analyzing & simulating…
+              </>
+            ) : (
+              "Run Simulation →"
+            )}
+          </button>
         </form>
-      </section>
-    </main>
+
+        {/* Footer */}
+        <footer
+          className="mt-12 pt-5 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs"
+          style={{ borderTop: "1px solid var(--border)", color: "var(--text-dim)" }}
+        >
+          <span>© 2025 EMS Configurator. AI-driven energy optimization.</span>
+          <div className="flex gap-5">
+            {["Privacy Policy", "Terms of Service", "Support"].map((l) => (
+              <a key={l} href="#" style={{ color: "var(--text-dim)" }}>{l}</a>
+            ))}
+          </div>
+        </footer>
+      </div>
+    </div>
   );
 }

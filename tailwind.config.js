@@ -8,16 +8,17 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        display: ["'Syne'", "sans-serif"],
-        body: ["'DM Sans'", "sans-serif"],
-        mono: ["'JetBrains Mono'", "monospace"],
+        display: ["'Inter'", "sans-serif"],
+        body:    ["'DM Sans'", "sans-serif"],
+        mono:    ["'JetBrains Mono'", "monospace"],
       },
       colors: {
-        volt: "#C8FF00",
-        carbon: "#0A0A0A",
-        slate: "#1A1A2E",
-        panel: "#111827",
-        muted: "#374151",
+        bg:      "#0F172A",
+        surface: "#1E293B",
+        border:  "#334155",
+        accent:  "#3B82F6",
+        muted:   "#94A3B8",
+        dim:     "#64748B",
       },
     },
   },
