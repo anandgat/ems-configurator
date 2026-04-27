@@ -27,9 +27,28 @@ export default function Results() {
   const cfg = result.recommended_config;
   const sim = result.simulation;
   const summary = sim?.summary;
+
+  // Debug: log full API response to confirm field values
+  console.log("[EMS] full result:", JSON.stringify(result, null, 2));
+  console.log("[EMS] summary.reductionPercent:", summary?.reductionPercent);
+  console.log("[EMS] summary.numberOfBatteries:", summary?.numberOfBatteries);
+
+  // Prefer simulation-verified battery config over product catalog values
+  const batteryCapacityKWh = summary?.batteryCapacityKWh ?? cfg.storage_kwh;
+  const minSOCKWh = summary?.minSOCKWh ?? (batteryCapacityKWh * 0.20);
+  const systemCostUSD = summary?.systemCostUSD ?? cfg.cost_usd;
+
   const annualSavings = result.projected_annual_savings_usd;
   const paybackYears = result.actual_payback_years;
-  const reductionPct = result.roi_achieved_pct;
+  const reductionPct = (() => {
+    if (summary && result.baselineAnnualCost && summary.annualNetBill != null) {
+      return Math.max(0, ((result.baselineAnnualCost - summary.annualNetBill) / result.baselineAnnualCost * 100)).toFixed(1);
+    }
+    if (summary?.reductionPercent) {
+      return Math.max(0, parseFloat(summary.reductionPercent)).toFixed(1);
+    }
+    return result.roi_achieved_pct ?? null;
+  })();
 
   const sectionTitle = (text) => (
     <h2
@@ -155,10 +174,10 @@ export default function Results() {
         {/* Key metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 fade-in-1">
           {[
-            { label: "System Cost",    value: cfg.cost_usd ? `$${cfg.cost_usd.toLocaleString()}` : "N/A", sub: "upfront investment", color: "var(--text)" },
+            { label: "System Cost",    value: systemCostUSD ? `$${systemCostUSD.toLocaleString()}` : "N/A", sub: "upfront investment", color: "var(--text)" },
             { label: "Annual Savings", value: annualSavings ? `$${annualSavings.toLocaleString()}` : "N/A", sub: sim ? "simulation-verified" : "AI estimate", color: "var(--success)" },
             { label: "Payback Period", value: paybackYears ? `${paybackYears} yrs` : "N/A", sub: "break-even point", color: "var(--accent)" },
-            { label: "Bill Reduction", value: reductionPct != null ? `${reductionPct}%` : "N/A", sub: sim ? "vs. baseline cost" : "estimated", color: "var(--accent)" },
+            { label: "Bill Reduction", value: reductionPct != null ? `${reductionPct}%` : "N/A", sub: summary ? "vs. baseline cost" : "estimated", color: "var(--accent)" },
           ].map((stat) => (
             <div key={stat.label} className="stat-box">
               <p className="ems-label mb-2">{stat.label}</p>
@@ -181,8 +200,8 @@ export default function Results() {
           >
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               {[
-                { label: "Annual Import",    value: `${summary.annualImportKWh?.toLocaleString()} kWh`,  color: "var(--danger)" },
-                { label: "Annual Export",    value: `${summary.annualExportKWh?.toLocaleString()} kWh`,  color: "var(--success)" },
+                { label: "Annual Import",    value: `${summary.annualImportKWh?.toFixed(1)} kWh`,  color: "var(--danger)" },
+                { label: "Annual Export",    value: `${summary.annualExportKWh?.toFixed(1)} kWh`,  color: "var(--success)" },
                 { label: "Import Cost",      value: `$${summary.annualImportCost?.toFixed(0)}`,          color: "var(--danger)" },
                 { label: "Export Credit",    value: `-$${summary.annualExportCredit?.toFixed(0)}`,       color: "var(--success)" },
                 { label: "Avg Monthly Bill", value: `$${summary.averageMonthlyBill?.toFixed(2)}`,        color: "var(--accent)" },
@@ -203,7 +222,7 @@ export default function Results() {
           <div className="ems-card rounded-xl p-6">
             {sectionTitle("15-Year Cumulative Savings")}
             <ROIChart
-              cost={cfg.cost_usd}
+              cost={systemCostUSD}
               annualSavings={annualSavings}
               years={15}
               baselineCost={result.baselineAnnualCost}
@@ -216,7 +235,7 @@ export default function Results() {
             <div className="space-y-0">
               {[
                 { label: "Capacity",           value: cfg.capacity_kw ? `${cfg.capacity_kw} kW` : null },
-                { label: "Storage",            value: cfg.storage_kwh ? `${cfg.storage_kwh} kWh` : null },
+                { label: "Storage",            value: batteryCapacityKWh ? `${batteryCapacityKWh} kWh${summary?.numberOfBatteries ? ` (${summary.numberOfBatteries} batteries)` : ""}` : null },
                 { label: "Battery Voltage",    value: cfg.battery_voltage ? `${cfg.battery_voltage} V` : null },
                 { label: "Depth of Discharge", value: cfg.depth_of_discharge ? `${cfg.depth_of_discharge}%` : null },
                 { label: "Best For",           value: cfg.best_for || cfg.description },
@@ -244,7 +263,12 @@ export default function Results() {
         {sim?.months && (
           <div className="ems-card rounded-xl p-6 mb-5 fade-in-3">
             {sectionTitle("State of Charge — Daily Cycle Checkpoints by Month")}
-            <SOCChart months={sim.months} batteryCapacity={cfg.storage_kwh} />
+            <SOCChart
+              key={summary?.annualNetBill}
+              months={sim.months}
+              batteryCapacityKWh={batteryCapacityKWh}
+              minSOC={minSOCKWh}
+            />
           </div>
         )}
 
@@ -261,20 +285,25 @@ export default function Results() {
           <div className="ems-card rounded-xl p-6 mb-5 fade-in-3">
             {sectionTitle("System Features")}
             <div className="flex flex-wrap gap-2">
-              {cfg.features.map((feature) => (
-                <span
-                  key={feature}
-                  className="text-xs px-3 py-1.5 rounded-md"
-                  style={{
-                    background: "var(--accent-muted)",
-                    border: "1px solid rgba(79,70,229,0.2)",
-                    color: "var(--accent)",
-                    fontFamily: "DM Sans, sans-serif",
-                  }}
-                >
-                  ✓ {feature}
-                </span>
-              ))}
+              {cfg.features.map((feature) => {
+                const label = summary?.numberOfBatteries && /\dx Deye/i.test(feature)
+                  ? feature.replace(/^\d+x/, `${summary.numberOfBatteries}x`)
+                  : feature;
+                return (
+                  <span
+                    key={feature}
+                    className="text-xs px-3 py-1.5 rounded-md"
+                    style={{
+                      background: "var(--accent-muted)",
+                      border: "1px solid rgba(79,70,229,0.2)",
+                      color: "var(--accent)",
+                      fontFamily: "DM Sans, sans-serif",
+                    }}
+                  >
+                    ✓ {label}
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}

@@ -1,11 +1,10 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { fetchProducts, mapProductForGemini, mapProductForDisplay, runSimulation } from "@/lib/api";
-import emsConfigsFallback from "@/data/ems-configs.json";
 
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { products: clientProducts, productsSource, planId, annualConsumption, currentUtilityRate, zipCode } = body;
+    const { productsSource, planId, annualConsumption, currentUtilityRate, zipCode } = body;
 
     if (!process.env.GEMINI_API_KEY) {
       return Response.json(
@@ -23,19 +22,18 @@ export async function POST(req) {
     let backendProducts = null;
 
     if (useBackend) {
-      try {
-        backendProducts = await fetchProducts();
-        productsForGemini = backendProducts.map(mapProductForGemini);
-      } catch {
-        productsForGemini = clientProducts;
-      }
+      backendProducts = await fetchProducts();
+      productsForGemini = backendProducts.map(mapProductForGemini);
     } else {
-      productsForGemini = emsConfigsFallback;
+      return Response.json(
+        { error: "Product catalog unavailable. The backend API is not reachable — please check the server connection." },
+        { status: 503 }
+      );
     }
 
     // Build Gemini prompt
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const MODELS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-pro"];
+    const MODELS = ["gemini-2.5-flash", "gemini-2.5-pro"];
 
     async function callGeminiWithFallback(prompt) {
       for (const modelId of MODELS) {
@@ -47,15 +45,16 @@ export async function POST(req) {
             console.log(`Gemini: success with ${modelId}`);
             return result;
           } catch (err) {
-            const is503 = err.message?.includes("503") || err.status === 503;
-            if (is503 && attempt === 1) {
-              console.warn(`Gemini 503 on ${modelId}, retrying in 2s…`);
+            const isTransient = err.message?.includes("503") || err.status === 503 ||
+                                err.message?.includes("403") || err.status === 403;
+            if (isTransient && attempt === 1) {
+              console.warn(`Gemini ${err.status} on ${modelId}, retrying in 2s…`);
               await new Promise((r) => setTimeout(r, 2000));
-            } else if (is503) {
-              console.warn(`Gemini 503 on ${modelId} after retry, trying next model…`);
+            } else if (isTransient) {
+              console.warn(`Gemini ${err.status} on ${modelId} after retry, trying next model…`);
               break; // move to next model
             } else {
-              throw err; // non-503 error (quota, auth etc) — don't retry
+              throw err; // quota exhausted, bad key etc — don't retry
             }
           }
         }

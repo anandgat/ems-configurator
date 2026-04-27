@@ -13,7 +13,16 @@ export default function Home() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [products, setProducts] = useState([]);
+  const [stepIndex, setStepIndex] = useState(-1);
+  const [stepFailed, setStepFailed] = useState(false);
+
+  const STEPS = [
+    { label: "Fetching product catalog",            detail: "Loading available EMS configurations from backend" },
+    { label: "Gemini AI analyzing your profile",    detail: "Selecting optimal configuration for your usage pattern" },
+    { label: "Running DailyCycleEngine",            detail: "Simulating 5-phase daily charge/discharge cycle × 12 months" },
+    { label: "Optimizing export percentage",        detail: "Binary search for max viable export per month" },
+    { label: "Building financial breakdown",        detail: "Calculating import costs, export credits, net bill" },
+  ];
   const [productsSource, setProductsSource] = useState(null);
   const [plans, setPlans] = useState([]);
   const [selectedPlanId, setSelectedPlanId] = useState(null);
@@ -29,8 +38,8 @@ export default function Home() {
   useEffect(() => {
     fetch("/api/products")
       .then((r) => r.json())
-      .then((d) => { setProducts(d.products); setProductsSource(d.source); })
-      .catch((e) => console.error("Failed to load products:", e));
+      .then((d) => setProductsSource(d.error ? "error" : d.source))
+      .catch(() => setProductsSource("error"));
 
     fetch("/api/plans")
       .then((r) => r.json())
@@ -55,28 +64,46 @@ export default function Home() {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setStepFailed(false);
+    setStepIndex(0);
+
+    // Step 0 → 1 after 400ms (catalog fetch), then HOLD at step 1 (Gemini) until API responds
+    const t0 = setTimeout(() => setStepIndex(1), 400);
 
     try {
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          annualConsumption:   parseInt(form.annual_kwh, 10),
-          currentUtilityRate:  parseFloat(form.tariff),
-          zipCode:             form.zip_code,
-          planId:              selectedPlanId,
-          products,
+          annualConsumption:  parseInt(form.annual_kwh, 10),
+          currentUtilityRate: parseFloat(form.tariff),
+          zipCode:            form.zip_code,
+          planId:             selectedPlanId,
           productsSource,
         }),
       });
 
+      clearTimeout(t0);
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || "Something went wrong");
+
+      // Success — quickly advance remaining steps then navigate
+      setStepIndex(2);
+      await new Promise((r) => setTimeout(r, 400));
+      setStepIndex(3);
+      await new Promise((r) => setTimeout(r, 400));
+      setStepIndex(4);
+      await new Promise((r) => setTimeout(r, 400));
+      setStepIndex(STEPS.length);
+      await new Promise((r) => setTimeout(r, 300));
 
       sessionStorage.setItem("ems_result", JSON.stringify(data));
       sessionStorage.setItem("ems_input", JSON.stringify({ ...form, planId: selectedPlanId }));
       router.push("/results");
     } catch (err) {
+      clearTimeout(t0);
+      // Mark current step as failed — overlay stays visible with error
+      setStepFailed(true);
       setError(err.message);
       setLoading(false);
     }
@@ -99,8 +126,8 @@ export default function Home() {
             <div
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
               style={{
-                background:   productsSource === "backend" ? "var(--success-muted)" : "var(--warning-muted)",
-                color:        productsSource === "backend" ? "var(--success)"       : "var(--warning)",
+                background: productsSource === "backend" ? "var(--success-muted)" : "var(--warning-muted)",
+                color:      productsSource === "backend" ? "var(--success)"       : "var(--warning)",
                 border: `1px solid ${productsSource === "backend" ? "rgba(5,150,105,0.2)" : "rgba(217,119,6,0.2)"}`,
                 fontFamily: "JetBrains Mono, monospace",
                 fontSize: "0.62rem",
@@ -108,7 +135,7 @@ export default function Home() {
               }}
             >
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor", display: "inline-block", flexShrink: 0 }} />
-              API CONNECTION: {productsSource === "backend" ? "STABLE" : "FALLBACK"}
+              API CONNECTION: {productsSource === "backend" ? "STABLE" : "DOWN"}
             </div>
           )}
         </div>
@@ -376,6 +403,134 @@ export default function Home() {
           </div>
         </footer>
       </div>
+
+      {/* ── Loading overlay ──────────────────────────────────── */}
+      {(loading || stepFailed) && stepIndex >= 0 && (
+        <div
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ background: "rgba(15,23,42,0.55)", backdropFilter: "blur(6px)", zIndex: 100 }}
+        >
+          <div
+            className="rounded-2xl p-8 w-full max-w-md mx-4"
+            style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-6">
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)" }}
+              >
+                {BOLT}
+              </div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>Running Simulation</p>
+                <p className="text-xs" style={{ color: "var(--text-dim)" }}>This takes 10–20 seconds</p>
+              </div>
+            </div>
+
+            {/* Steps */}
+            <div className="space-y-3">
+              {STEPS.map((step, i) => {
+                const done    = stepIndex > i && !(stepFailed && stepIndex === i);
+                const failed  = stepFailed && stepIndex === i;
+                const active  = stepIndex === i && !stepFailed;
+                const pending = stepIndex < i;
+                return (
+                  <div key={step.label} className="flex items-start gap-3">
+                    {/* Icon */}
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                      style={{
+                        background: failed  ? "var(--danger)"       :
+                                    done    ? "var(--success)"      :
+                                    active  ? "var(--accent)"       : "var(--border)",
+                        transition: "background 0.3s",
+                      }}
+                    >
+                      {failed ? (
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                          <path d="M3 3l4 4M7 3l-4 4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                      ) : done ? (
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                          <path d="M2 5l2.5 2.5L8 3" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      ) : active ? (
+                        <span
+                          style={{
+                            width: 8, height: 8, borderRadius: "50%",
+                            border: "2px solid #fff",
+                            borderTopColor: "transparent",
+                            display: "inline-block",
+                            animation: "spin 0.7s linear infinite",
+                          }}
+                        />
+                      ) : (
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--text-dim)", display: "inline-block" }} />
+                      )}
+                    </div>
+
+                    {/* Text */}
+                    <div style={{ opacity: pending ? 0.4 : 1, transition: "opacity 0.3s" }}>
+                      <p
+                        className="text-sm font-medium"
+                        style={{ color: failed ? "var(--danger)" : done ? "var(--success)" : active ? "var(--text)" : "var(--text-muted)" }}
+                      >
+                        {step.label}
+                      </p>
+                      {failed && (
+                        <p className="text-xs mt-0.5" style={{ color: "var(--danger)", opacity: 0.8 }}>
+                          {error}
+                        </p>
+                      )}
+                      {(active || done) && !failed && (
+                        <p className="text-xs mt-0.5" style={{ color: "var(--text-dim)" }}>
+                          {step.detail}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Progress bar */}
+            <div className="mt-6 rounded-full overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
+              <div
+                style={{
+                  height: "100%",
+                  width: `${Math.min((stepIndex / STEPS.length) * 100, 100)}%`,
+                  background: stepFailed ? "var(--danger)" : "linear-gradient(90deg, #4F46E5, #7C3AED)",
+                  transition: "width 0.4s ease",
+                  borderRadius: 999,
+                }}
+              />
+            </div>
+
+            {/* Retry on failure */}
+            {stepFailed && (
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setStepFailed(false); setStepIndex(-1); setError(""); }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                  style={{ background: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
+                >
+                  ← Try Again
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setStepFailed(false); setStepIndex(-1); setError(""); setLoading(false); }}
+                  className="py-2.5 px-4 rounded-xl text-sm font-semibold transition-all"
+                  style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-dim)" }}
+                >
+                  ✕ Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

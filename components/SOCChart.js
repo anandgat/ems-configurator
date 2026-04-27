@@ -24,7 +24,7 @@ const CHECKPOINTS = [
 
 const COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EF4444"];
 
-export default function SOCChart({ months, batteryCapacity }) {
+export default function SOCChart({ months, batteryCapacityKWh, minSOC }) {
   if (!months || months.length === 0) return null;
 
   const labels = months.map((m) => m.monthName.substring(0, 3));
@@ -41,10 +41,9 @@ export default function SOCChart({ months, batteryCapacity }) {
     pointBackgroundColor: COLORS[i],
   }));
 
-  if (batteryCapacity) {
-    const minSOC = batteryCapacity * 0.2;
+  if (minSOC != null) {
     datasets.push({
-      label: `Min SOC (${minSOC.toFixed(1)} kWh)`,
+      label: `Min SOC (${minSOC.toFixed(2)} kWh)`,
       data: labels.map(() => minSOC),
       borderColor: "rgba(100,116,139,0.4)",
       backgroundColor: "transparent",
@@ -89,6 +88,8 @@ export default function SOCChart({ months, batteryCapacity }) {
         ticks: { color: "#94A3B8", font: { family: "JetBrains Mono", size: 10 } },
       },
       y: {
+        min: 0,
+        ...(batteryCapacityKWh ? { max: batteryCapacityKWh } : {}),
         grid: { color: "rgba(226,232,240,0.8)" },
         ticks: {
           color: "#94A3B8",
